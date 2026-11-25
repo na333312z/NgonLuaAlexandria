@@ -438,6 +438,7 @@ function parseLine(text){
   return {key:null, body:text};
 }
 function showLine(text, meta){
+  D.last = {text, meta:{p:meta.p, advice:meta.advice}};
   const L = parseLine(text);
   const box = $('#box'); box.className = '';
   let key = L.key, pid = meta.p;
@@ -876,20 +877,109 @@ document.querySelectorAll('.modal').forEach(m=>m.addEventListener('click', e=>{ 
 $('#mg-x').onclick = () => { logAct('Bỏ dở minigame'); closeMG(); checkSunset(); };
 $('#b-again').onclick = () => { $('#end').classList.remove('on'); story.ResetState(); S = freshState(); setBg('den'); runKnot('mo_dau'); };
 
+
+/* =========================================================
+   LƯU & TẢI
+   - Tự lưu mỗi khi hiện lựa chọn, và mỗi khi người chơi đứng tự do trong thành.
+   - Thua: lưu sẵn đầu lượt kế tiếp. Thắng: xoá bản lưu.
+   ========================================================= */
+const SAVE_KEY = 'alex_save_v1';
+const readSave = () => { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch(e){ return null; } };
+const clearSave = () => { try { localStorage.removeItem(SAVE_KEY); } catch(e){} };
+function writeSave(obj){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign({v:1, t:Date.now()}, obj))); return true; } catch(e){ console.warn('Không lưu được', e); return false; } }
+const serS = () => Object.assign({}, S, {met:[...S.met], used:[...S.used], visited:[...S.visited], intro:[...S.intro], hist:S.hist.slice(-400)});
+const deserS = o => Object.assign(freshState(), o, {met:new Set(o.met), used:new Set(o.used), visited:new Set(o.visited), intro:new Set(o.intro)});
+function canSave(){
+  if(!story || !S) return 'Chưa vào game.';
+  if($('#m-mg').classList.contains('on')) return 'Đang làm minigame, làm xong rồi lưu.';
+  if(D.open && !D.choices) return 'Đợi hết đoạn thoại rồi lưu.';
+  if(!S.inCity && !D.choices) return 'Chỉ lưu được khi đang ở Alexandria.';
+  return '';
+}
+function saveNow(silent){
+  const why = canSave(); if(why){ if(!silent) toast(why); return false; }
+  const ok = writeSave({
+    mode: D.open && D.choices ? 'choice' : 'explore',
+    ink: story.state.toJson(), S: serS(),
+    unlocked: Object.keys(LOCS).filter(k=>LOCS[k].unlocked),
+    line: D.open ? D.last : null, post: D.post.slice(),
+    luot: v('luot'), place: S.loc && LOCS[S.loc] ? LOCS[S.loc].name : '', drops: S.clock,
+  });
+  if(ok && !silent) toast('Đã lưu');
+  return ok;
+}
+function saveNewRun(luot, loai){
+  writeSave({mode:'newrun', luot, loai, S:{hist:S.hist.slice(-400), lessons:S.lessons, intro:[...S.intro]}, place:'Đền các nàng Muse', drops:TOTAL_DROPS});
+}
+function loadSave(){
+  const sv = readSave(); if(!sv) return false;
+  $('#title').classList.remove('on'); closeModal(); closeMG();
+  $('#fail').classList.remove('on'); $('#end').classList.remove('on');
+  D.open=false; D.choices=false; D.post=[]; D.after=null; $('#dlg').classList.remove('on'); $('#choices').innerHTML='';
+  if(sv.mode==='newrun'){
+    story.ResetState(); setv('luot', sv.luot); setv('loai_thua', sv.loai||'');
+    S = freshState({hist:sv.S.hist, lessons:sv.S.lessons, intro:new Set(sv.S.intro)});
+    $('#hud').hidden = true; $('#party').innerHTML=''; setBg('den'); runKnot('mo_dau');
+    return true;
+  }
+  story.state.LoadJson(sv.ink);
+  S = deserS(sv.S);
+  Object.keys(LOCS).forEach(k=>{ LOCS[k].unlocked = (sv.unlocked||[]).includes(k); });
+  $('#hud').hidden = !S.inCity; if(S.inCity) drawClock();
+  setBg(S.bg || (S.loc && LOCS[S.loc] ? LOCS[S.loc].bg : 'den')); renderLoc();
+  if(sv.mode==='choice' && story.currentChoices.length){
+    D.open = true; D.post = sv.post || []; $('#dlg').classList.add('on'); $('#spots').style.visibility='hidden';
+    if(sv.line){ const n = S.hist.length; showLine(sv.line.text, sv.line.meta||{}); S.hist.length = n; clearInterval(D.tmr); $('#txt').textContent = D.full; D.typing=false; }
+    showChoices();
+  }
+  toast('Đã tải bản lưu');
+  return true;
+}
+const _showChoices = showChoices;
+showChoices = function(){ _showChoices(); saveNow(true); };
+const _endDialog = endDialog;
+endDialog = function(){ _endDialog(); if(S && S.inCity && !S.turtle && !D.open && !$('#m-mg').classList.contains('on') && !$('#fail').classList.contains('on')) saveNow(true); };
+const _showFail = showFail;
+showFail = function(type){ _showFail(type); saveNewRun(v('luot')+1, type); };
+const _showEnd = showEnd;
+showEnd = function(){ _showEnd(); clearSave(); };
+
+/* Màn hình tiêu đề: Tiếp tục / Chơi mới */
+function fmtSave(sv){
+  const d = new Date(sv.t); const pad = n => String(n).padStart(2,'0');
+  const when = `${pad(d.getHours())}:${pad(d.getMinutes())} ngày ${d.getDate()}/${d.getMonth()+1}`;
+  return `Lượt ${sv.luot||1} · ${sv.place||'Alexandria'}${sv.mode!=='newrun' && sv.drops!=null ? ' · còn '+sv.drops+' giọt nước' : ''} · lưu lúc ${when}`;
+}
+function refreshTitle(){
+  const sv = readSave(); const c = $('#b-cont'), n = $('#b-start');
+  c.disabled = !sv || !story; $('#saveinfo').textContent = sv ? fmtSave(sv) : 'Chưa có bản lưu nào.';
+  n.textContent = 'Chơi mới'; n.dataset.arm = '';
+  n.className = sv ? 'btn ghost' : 'btn'; c.className = sv ? 'btn' : 'btn ghost';
+}
+function showTitle(){ if(D.open || S?.inCity) saveNow(true); $('#title').classList.add('on'); refreshTitle(); }
+
 async function boot(){
   fit();
   $('#title').classList.add('on');
-  const btn = $('#b-start'); btn.disabled = true; btn.textContent = 'Đang tải...';
+  const btn = $('#b-start'), cont = $('#b-cont'); btn.disabled = true; cont.disabled = true; btn.textContent = 'Đang tải...';
   try {
     const src = await fetch('alexandria.ink').then(r=>{ if(!r.ok) throw new Error('Không tải được alexandria.ink'); return r.text(); });
     story = new inkjs.Compiler(src).Compile();
     S = freshState();
-    btn.disabled = false; btn.textContent = 'Đeo miếng che mắt, đi ngủ';
+    btn.disabled = false; refreshTitle();
   } catch(err) {
     btn.textContent = 'Lỗi tải kịch bản'; console.error(err);
     $('#title p').textContent = 'Không tải được kịch bản của màn chơi. Tải lại trang thử xem.';
     return;
   }
-  btn.onclick = () => { $('#title').classList.remove('on'); setBg('den'); runKnot('mo_dau'); };
+  btn.onclick = () => {
+    if(readSave() && btn.dataset.arm !== '1'){ btn.dataset.arm = '1'; btn.textContent = 'Bấm lần nữa: xoá bản lưu, chơi lại từ đầu'; setTimeout(()=>{ if(btn.dataset.arm==='1') refreshTitle(); }, 4000); return; }
+    clearSave(); $('#title').classList.remove('on');
+    story.ResetState(); S = freshState({intro:S?.intro}); D.open=false; $('#hud').hidden = true; $('#party').innerHTML='';
+    setBg('den'); runKnot('mo_dau');
+  };
+  cont.onclick = () => { if(!cont.disabled) loadSave(); };
+  $('#b-save').onclick = () => saveNow(false);
+  $('#b-menu').onclick = () => showTitle();
 }
 boot();

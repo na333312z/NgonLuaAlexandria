@@ -180,6 +180,10 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--gold);outl
 #title h1{font-family:var(--f-display);font-size:4.2em;font-weight:700;margin:.15em 0 .1em;color:var(--ivory);text-wrap:balance;line-height:1.05}
 #title p{max-width:34em;color:var(--ivory-dim);line-height:1.6;font-size:.98em}
 #title .btn{font-size:1.1em;margin-top:1em;padding:.7em 2em}
+.tbtns{display:flex;gap:1em;flex-wrap:wrap;justify-content:center;margin-top:1em}
+.tbtns .btn{margin-top:0!important;min-width:11em}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.saveinfo{margin-top:.8em;font-size:.85em;color:var(--ivory-dim);min-height:1.3em}
 #title small{margin-top:1.4em;color:#8c8473;font-size:.78em;max-width:40em;line-height:1.5}
 #fail{background:linear-gradient(#070b14d9,#070b14f2),url(assets/bg/bang_thua.webp) center/cover}
 .slab{background:linear-gradient(#d9d1bf,#b9ae97);color:#2a241a;border-radius:.4em .4em .2em .2em;padding:1em 2em 1.2em;box-shadow:inset 0 0 0 3px #a2967d, 0 20px 40px #000a;min-width:26em}
@@ -233,6 +237,8 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--gold);outl
       <button class="tbtn" id="b-map">Bản đồ <kbd>M</kbd></button>
       <button class="tbtn" id="b-note"><span class="dot"></span>Sổ phác thảo <kbd>N</kbd></button>
       <button class="tbtn" id="b-hist">Lịch sử <kbd>H</kbd></button>
+      <button class="tbtn" id="b-save" title="Lưu game. Game cũng tự lưu mỗi khi bạn đứng trước một lựa chọn.">Lưu</button>
+      <button class="tbtn" id="b-menu" title="Về màn hình chính (tự lưu trước)">Menu</button>
     </div>
   </div>
 
@@ -257,8 +263,9 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--gold);outl
     <div class="k">Màn 1 · Nàng Clio</div>
     <h1>Ngọn lửa ở Alexandria</h1>
     <p>Ba người bạn đeo thiết bị của phòng thí nghiệm, vào thử một game lịch sử, và thấy mình đứng trong một ngôi đền thật hơn bất cứ game nào. Nơi họ sắp tới là Alexandria, năm 48 trước Công nguyên, nơi cả thành đang nói với nhau rằng thư viện đã cháy rụi. Có một kẻ đang dắt mũi đám đông bằng lời lẽ sai. Họ có tới lúc bát nước cuối cùng cạn để tìm ra hắn.</p>
-    <button class="btn" id="b-start">Đeo miếng che mắt, đi ngủ</button>
-    <small>Màn chơi dài khoảng một đến hai tiếng. Không có nút tạm dừng: đóng trang là mất tiến trình của lượt đang chơi. Phím tắt: Space để đọc tiếp, M bản đồ, N sổ phác thảo, H lịch sử.</small>
+    <div class="tbtns"><button class="btn" id="b-cont">Tiếp tục</button><button class="btn" id="b-start">Chơi mới</button></div>
+    <div class="saveinfo" id="saveinfo"></div>
+    <small>Màn chơi dài khoảng một đến hai tiếng. Game tự lưu mỗi khi bạn đứng trước một lựa chọn hoặc đứng tự do trong thành; đóng trang rồi mở lại, bấm Tiếp tục. Phím tắt: Space để đọc tiếp, M bản đồ, N sổ phác thảo, H lịch sử, S âm thanh.</small>
   </div>
 
   <div class="full" id="fail">
