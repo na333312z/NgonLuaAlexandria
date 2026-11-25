@@ -369,7 +369,12 @@ function markNew(){ S.newNote = true; $('#b-note').classList.add('new'); }
    ========================================================= */
 function renderLoc(){
   const L = LOCS[S.loc]; if(!L) return;
-  $('#locname').textContent = L.name;
+  const vis = L.spots.filter(sp=>!sp.show || sp.show());
+  const allSeen = vis.length>0 && vis.every(sp=>S.used.has(sp.k));
+  const hint = allSeen ? 'Đã xem hết ở đây · bấm Bản đồ (M) để đi nơi khác'
+             : !S.trav ? 'Bấm vào các vòng tròn để xem · bấm Bản đồ (M) để đi nơi khác' : '';
+  $('#locname').innerHTML = esc(L.name) + (hint ? `<small class="lochint">${hint}</small>` : '');
+  $('#b-map').classList.toggle('nudge', allSeen && S.inCity);
   const spots = $('#spots'); spots.innerHTML='';
   for(const sp of L.spots){
     if(sp.show && !sp.show()) continue;
@@ -387,6 +392,7 @@ function travel(id, free){
   if(!free && S.clock<=0){ closeModal(); toast('Nước đã cạn. Mặt trời đang lặn.'); checkSunset(); return; }
   closeModal();
   if(!free) spend(1, 'đi tới '+LOCS[id].name);
+  if(!free) S.trav = (S.trav||0) + 1;
   S.loc = id; S.visited.add(id);
   if(free) logAct('Tới '+LOCS[id].name);
   setBg(LOCS[id].bg); renderLoc();
@@ -547,6 +553,7 @@ function openNote(tab){
 }
 const evCard = (id, sel) => { const E = EVIDENCE[id]; const img = asset(E.img); return `<div class="card${sel?' sel':''}" data-ev="${id}"><div class="ic">${img?`<img src="${img}" alt="">`:esc(E.k)}</div><div><h4>${esc(E.t)}</h4><p>${esc(E.d)}</p></div></div>`; };
 function openMap(){
+  $('#b-map').classList.remove('nudge');
   const pins = Object.entries(LOCS).filter(([id,L])=>{
     if(id==='phong_doc') return S.visited.has('phong_doc');
     if(L.unlock && L.unlock!=='_doc') return !!v(L.unlock);
