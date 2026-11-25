@@ -30,7 +30,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--gold);outl
 #bg.fade{opacity:0}
 
 /* HUD */
-#hud{position:absolute;left:0;right:0;top:0;display:flex;align-items:flex-start;justify-content:space-between;padding:.9em 1.1em;pointer-events:none;z-index:20}
+#hud{position:absolute;left:0;right:0;top:0;display:flex;align-items:flex-start;justify-content:space-between;padding:.9em 1.1em;pointer-events:none;z-index:35}
 #hud > *{pointer-events:auto}
 #clock{display:flex;gap:.7em;align-items:center;background:#121a2be6;border:1px solid var(--gold-dim);border-radius:.6em;padding:.45em .8em .45em .5em}
 #clock svg{width:2.6em;height:3.4em}
@@ -180,6 +180,15 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--gold);outl
 #title h1{font-family:var(--f-display);font-size:4.2em;font-weight:700;margin:.15em 0 .1em;color:var(--ivory);text-wrap:balance;line-height:1.05}
 #title p{max-width:34em;color:var(--ivory-dim);line-height:1.6;font-size:.98em}
 #title .btn{font-size:1.1em;margin-top:1em;padding:.7em 2em}
+#m-save{z-index:66}
+#m-save .panel{max-width:46em}
+.slot{display:flex;gap:1em;align-items:center;padding:.8em 0;border-top:1px solid #ffffff1a}
+.sl-name{flex:0 0 5.5em;font-family:var(--f-display);font-size:1.15em;color:var(--gold)}
+.sl-info{flex:1;font-size:.9em;color:var(--ivory-dim);min-width:0}
+.sl-act{display:flex;gap:.5em;flex-wrap:wrap;justify-content:flex-end}
+.sl-act .btn{padding:.45em .9em;font-size:.85em;margin:0}
+.sl-note{font-size:.88em;color:var(--ivory-dim);margin:0 0 .6em}
+@media (max-width:700px){.slot{flex-wrap:wrap}.sl-name{flex-basis:100%}}
 .tbtns{display:flex;gap:1em;flex-wrap:wrap;justify-content:center;margin-top:1em}
 .tbtns .btn{margin-top:0!important;min-width:11em}
 .btn:disabled{opacity:.4;cursor:not-allowed}
@@ -237,7 +246,7 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--gold);outl
       <button class="tbtn" id="b-map">Bản đồ <kbd>M</kbd></button>
       <button class="tbtn" id="b-note"><span class="dot"></span>Sổ phác thảo <kbd>N</kbd></button>
       <button class="tbtn" id="b-hist">Lịch sử <kbd>H</kbd></button>
-      <button class="tbtn" id="b-save" title="Lưu game. Game cũng tự lưu mỗi khi bạn đứng trước một lựa chọn.">Lưu</button>
+      <button class="tbtn" id="b-save" title="Lưu hoặc tải game, lúc nào cũng được">Lưu / Tải <kbd>L</kbd></button>
       <button class="tbtn" id="b-menu" title="Về màn hình chính (tự lưu trước)">Menu</button>
     </div>
   </div>
@@ -257,15 +266,16 @@ button:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--gold);outl
   <div class="modal" id="m-map"><div class="panel"><header><div><h2>Alexandria</h2><div class="sub">Mỗi lần đi tới một nơi khác tốn một giọt nước.</div></div><button class="x" data-close>Đóng · Esc</button></header><div class="body" id="map" style="padding:0"></div></div></div>
   <div class="modal" id="m-note"><div class="panel"><header><div><h2>Sổ phác thảo</h2><div class="sub">Những gì Nhật Anh đã thấy, đã nghe, đã vẽ lại.</div></div><button class="x" data-close>Đóng · Esc</button></header><div class="tabs" id="ntabs"></div><div class="body" id="nbody"></div></div></div>
   <div class="modal" id="m-hist"><div class="panel"><header><div><h2>Lịch sử hội thoại</h2></div><button class="x" data-close>Đóng · Esc</button></header><div class="body hist" id="hbody"></div></div></div>
-  <div class="modal mg" id="m-mg"><div class="panel"><header><div><h2 id="mg-title"></h2><div class="sub" id="mg-sub"></div></div><button class="x" id="mg-x">Để sau</button></header><div class="body" id="mg-body"></div></div></div>
+  <div class="modal" id="m-save"><div class="panel"><header><div><h2>Lưu &amp; tải</h2><div class="sub">Lưu được ở bất cứ lúc nào, kể cả giữa đoạn thoại hay minigame.</div></div><button class="x" data-close>Đóng · Esc</button></header><div class="body" id="sbody"></div></div></div>
+  <div class="modal mg" id="m-mg"><div class="panel"><header><div><h2 id="mg-title"></h2><div class="sub" id="mg-sub"></div></div><div style="display:flex;gap:.5em"><button class="x" id="mg-save">Lưu / Tải</button><button class="x" id="mg-x">Để sau</button></div></header><div class="body" id="mg-body"></div></div></div>
 
   <div class="full" id="title">
     <div class="k">Màn 1 · Nàng Clio</div>
     <h1>Ngọn lửa ở Alexandria</h1>
     <p>Ba người bạn đeo thiết bị của phòng thí nghiệm, vào thử một game lịch sử, và thấy mình đứng trong một ngôi đền thật hơn bất cứ game nào. Nơi họ sắp tới là Alexandria, năm 48 trước Công nguyên, nơi cả thành đang nói với nhau rằng thư viện đã cháy rụi. Có một kẻ đang dắt mũi đám đông bằng lời lẽ sai. Họ có tới lúc bát nước cuối cùng cạn để tìm ra hắn.</p>
-    <div class="tbtns"><button class="btn" id="b-cont">Tiếp tục</button><button class="btn" id="b-start">Chơi mới</button></div>
+    <div class="tbtns"><button class="btn" id="b-cont">Tiếp tục</button><button class="btn ghost" id="b-load">Tải game</button><button class="btn" id="b-start">Chơi mới</button></div>
     <div class="saveinfo" id="saveinfo"></div>
-    <small>Màn chơi dài khoảng một đến hai tiếng. Game tự lưu mỗi khi bạn đứng trước một lựa chọn hoặc đứng tự do trong thành; đóng trang rồi mở lại, bấm Tiếp tục. Phím tắt: Space để đọc tiếp, M bản đồ, N sổ phác thảo, H lịch sử, S âm thanh.</small>
+    <small>Màn chơi dài khoảng một đến hai tiếng. Lưu được bất cứ lúc nào; game cũng tự lưu khi bạn đứng trước một lựa chọn và khi đóng trang, mở lại thì bấm Tiếp tục. Phím tắt: Space để đọc tiếp, M bản đồ, N sổ phác thảo, H lịch sử, L lưu và tải, S âm thanh.</small>
   </div>
 
   <div class="full" id="fail">

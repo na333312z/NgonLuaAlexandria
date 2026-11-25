@@ -816,13 +816,13 @@ function enterCity(){
   S.inCity = true; S.clock = TOTAL_DROPS; $('#hud').hidden=false; drawClock();
   S.loc='cong'; S.visited.add('cong'); setBg('cong'); renderLoc();
   logAct('Tới Alexandria');
-  runKnot('den_noi', ()=>{ toast('Bấm vào những vòng tròn để xem, bấm Bản đồ để đi nơi khác.'); checkSunset(); });
+  runKnot('den_noi', AFTER('city'));
 }
 function startTurtle(){
   if(S.turtle) return; S.turtle = true;
   S.loc='san_trong'; $('#locname').textContent='Sân trong'; $('#spots').innerHTML='';
   logAct('Hoàng hôn. Kim Quy nổi lên ở hồ nước');
-  runKnot('rua_noi_len', ()=>openMG('ten'));
+  runKnot('rua_noi_len', AFTER('ten'));
 }
 function showFail(type){
   S.inCity=false; $('#hud').hidden=true; $('#spots').innerHTML=''; $('#party').innerHTML='';
@@ -835,7 +835,7 @@ function showFail(type){
   S.lessons.push(clue);
   $('#flog').innerHTML = S.log.map(e=>`<li><span class="t">${e.c} giọt</span><span>${esc(e.t)}</span></li>`).join('');
   $('#fail').classList.add('on');
-  $('#b-home').onclick = () => { $('#fail').classList.remove('on'); runKnot('doi_thuc', ()=>restart(type)); };
+  $('#b-home').onclick = () => { $('#fail').classList.remove('on'); runKnot('doi_thuc', AFTER('restart', type)); };
 }
 function restart(type){
   const luot = v('luot'); setBg('den');
@@ -855,7 +855,10 @@ function showEnd(){
 function fit(){ const st=$('#stage'); st.style.setProperty('--u', (st.clientWidth/1280*16).toFixed(2)+'px'); }
 addEventListener('resize', fit);
 document.addEventListener('keydown', e=>{
+  if(e.key==='Escape' && $('#m-save').classList.contains('on')){ $('#m-save').classList.remove('on'); return; }
   if($('#title').classList.contains('on')) return;
+  if((e.key==='l'||e.key==='L') && story && !$('#fail').classList.contains('on') && !$('#end').classList.contains('on')){ if($('#m-save').classList.contains('on')) $('#m-save').classList.remove('on'); else openSaves(); return; }
+  if($('#m-save').classList.contains('on')) return;
   if(e.key==='Escape'){ closeModal(); return; }
   const modalOn = document.querySelector('.modal.on');
   if(D.open && !modalOn){
@@ -880,42 +883,60 @@ $('#b-again').onclick = () => { $('#end').classList.remove('on'); story.ResetSta
 
 /* =========================================================
    LƯU & TẢI
-   - Tự lưu mỗi khi hiện lựa chọn, và mỗi khi người chơi đứng tự do trong thành.
-   - Thua: lưu sẵn đầu lượt kế tiếp. Thắng: xoá bản lưu.
+   - Lưu được mọi lúc: giữa hội thoại, trong minigame, khi đang đi lại.
+   - Một ô tự lưu (lưu khi hiện lựa chọn, sau mỗi đoạn thoại, khi đóng trang)
+     và ba ô lưu tay.
+   - Thua: ô tự lưu giữ sẵn đầu lượt kế. Thắng: xoá ô tự lưu.
    ========================================================= */
-const SAVE_KEY = 'alex_save_v1';
-const readSave = () => { try { const s = localStorage.getItem(SAVE_KEY); return s ? JSON.parse(s) : null; } catch(e){ return null; } };
-const clearSave = () => { try { localStorage.removeItem(SAVE_KEY); } catch(e){} };
-function writeSave(obj){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign({v:1, t:Date.now()}, obj))); return true; } catch(e){ console.warn('Không lưu được', e); return false; } }
+const AFTER_FN = {
+  city: () => () => { toast('Bấm vào những vòng tròn để xem, bấm Bản đồ để đi nơi khác.'); checkSunset(); },
+  ten: () => () => openMG('ten'),
+  restart: type => () => restart(type),
+};
+function AFTER(key, arg){ const f = AFTER_FN[key](arg); f.key = key; f.arg = arg; return f; }
+const SLOTS = ['auto','1','2','3'];
+const slotKey = s => s==='auto' ? 'alex_save_v1' : 'alex_save_slot_'+s;
+const readSave = (slot='auto') => { try { const s = localStorage.getItem(slotKey(slot)); return s ? JSON.parse(s) : null; } catch(e){ return null; } };
+const clearSave = (slot='auto') => { try { localStorage.removeItem(slotKey(slot)); } catch(e){} };
+const latestSave = () => SLOTS.map(s=>({s, sv:readSave(s)})).filter(x=>x.sv).sort((a,b)=>b.sv.t-a.sv.t)[0] || null;
+function writeSave(obj, slot='auto'){ try { localStorage.setItem(slotKey(slot), JSON.stringify(Object.assign({v:2, t:Date.now()}, obj))); return true; } catch(e){ console.warn('Không lưu được', e); return false; } }
 const serS = () => Object.assign({}, S, {met:[...S.met], used:[...S.used], visited:[...S.visited], intro:[...S.intro], hist:S.hist.slice(-400)});
 const deserS = o => Object.assign(freshState(), o, {met:new Set(o.met), used:new Set(o.used), visited:new Set(o.visited), intro:new Set(o.intro)});
 function canSave(){
   if(!story || !S) return 'Chưa vào game.';
-  if($('#m-mg').classList.contains('on')) return 'Đang làm minigame, làm xong rồi lưu.';
-  if(D.open && !D.choices) return 'Đợi hết đoạn thoại rồi lưu.';
-  if(!S.inCity && !D.choices) return 'Chỉ lưu được khi đang ở Alexandria.';
+  if($('#title').classList.contains('on')) return 'Đang ở màn hình chính.';
+  if($('#fail').classList.contains('on')) return 'Game đã tự lưu sẵn đầu lượt kế tiếp.';
+  if($('#end').classList.contains('on')) return 'Màn chơi đã kết thúc.';
   return '';
 }
-function saveNow(silent){
+function placeName(){
+  if(MG) return ({kho:'Đo kho',ke:'Soi kệ',pin:'Đối chiếu Pinakes',day:'Dây niên đại',doichat:'Phiên đối chất',ten:'Viết tên lên mai rùa'})[MG.kind] || 'Minigame';
+  if(S.inCity) return S.loc && LOCS[S.loc] ? LOCS[S.loc].name : 'Alexandria';
+  return ({den:'Đền các nàng Muse',den_thang:'Đền các nàng Muse',phong_na:'Ngoài đời',ban_an:'Ngoài đời',cong_vien:'Ngoài đời',san_bong_ro:'Ngoài đời',bep:'Ngoài đời'})[S.bg] || 'Đền các nàng Muse';
+}
+function saveNow(silent, slot='auto'){
   const why = canSave(); if(why){ if(!silent) toast(why); return false; }
+  const mode = MG ? 'mg' : D.open ? 'dialog' : 'explore';
   const ok = writeSave({
-    mode: D.open && D.choices ? 'choice' : 'explore',
-    ink: story.state.toJson(), S: serS(),
+    mode, ink: story.state.toJson(), S: serS(),
     unlocked: Object.keys(LOCS).filter(k=>LOCS[k].unlocked),
-    line: D.open ? D.last : null, post: D.post.slice(),
-    luot: v('luot'), place: S.loc && LOCS[S.loc] ? LOCS[S.loc].name : '', drops: S.clock,
-  });
-  if(ok && !silent) toast('Đã lưu');
+    line: D.open ? D.last : null, choices: !!D.choices, post: D.post.slice(),
+    after: D.after && D.after.key ? {key:D.after.key, arg:D.after.arg} : null,
+    mg: MG ? {kind:MG.kind, ret:MG.ret} : null,
+    luot: v('luot'), place: placeName(), drops: S.inCity ? S.clock : null,
+  }, slot);
+  if(ok && !silent) toast(slot==='auto' ? 'Đã lưu' : 'Đã lưu vào ô '+slot);
   return ok;
 }
 function saveNewRun(luot, loai){
-  writeSave({mode:'newrun', luot, loai, S:{hist:S.hist.slice(-400), lessons:S.lessons, intro:[...S.intro]}, place:'Đền các nàng Muse', drops:TOTAL_DROPS});
+  writeSave({mode:'newrun', luot, loai, S:{hist:S.hist.slice(-400), lessons:S.lessons, intro:[...S.intro]}, place:'Đền các nàng Muse', drops:null});
 }
-function loadSave(){
-  const sv = readSave(); if(!sv) return false;
-  $('#title').classList.remove('on'); closeModal(); closeMG();
+function loadSave(slot){
+  const sv = slot ? readSave(slot) : latestSave()?.sv; if(!sv) return false;
+  $('#title').classList.remove('on'); closeModal(); $('#m-save').classList.remove('on'); if(MG) closeMG();
   $('#fail').classList.remove('on'); $('#end').classList.remove('on');
-  D.open=false; D.choices=false; D.post=[]; D.after=null; $('#dlg').classList.remove('on'); $('#choices').innerHTML='';
+  clearInterval(D.tmr); D.open=false; D.choices=false; D.typing=false; D.post=[]; D.after=null;
+  $('#dlg').classList.remove('on'); $('#choices').innerHTML=''; $('#txt').textContent=''; $('#portrait').classList.add('hide'); $('#spots').style.visibility='';
   if(sv.mode==='newrun'){
     story.ResetState(); setv('luot', sv.luot); setv('loai_thua', sv.loai||'');
     S = freshState({hist:sv.S.hist, lessons:sv.S.lessons, intro:new Set(sv.S.intro)});
@@ -927,10 +948,14 @@ function loadSave(){
   Object.keys(LOCS).forEach(k=>{ LOCS[k].unlocked = (sv.unlocked||[]).includes(k); });
   $('#hud').hidden = !S.inCity; if(S.inCity) drawClock();
   setBg(S.bg || (S.loc && LOCS[S.loc] ? LOCS[S.loc].bg : 'den')); renderLoc();
-  if(sv.mode==='choice' && story.currentChoices.length){
-    D.open = true; D.post = sv.post || []; $('#dlg').classList.add('on'); $('#spots').style.visibility='hidden';
+  if(sv.mode==='dialog' || sv.mode==='choice'){
+    D.open = true; D.post = sv.post || []; D.after = sv.after ? AFTER(sv.after.key, sv.after.arg) : null;
+    $('#dlg').classList.add('on'); $('#spots').style.visibility='hidden';
     if(sv.line){ const n = S.hist.length; showLine(sv.line.text, sv.line.meta||{}); S.hist.length = n; clearInterval(D.tmr); $('#txt').textContent = D.full; D.typing=false; }
-    showChoices();
+    if(!story.canContinue && story.currentChoices.length) showChoices();
+    else if(!sv.line) step();
+  } else if(sv.mode==='mg' && sv.mg){
+    openMG(sv.mg.kind, sv.mg.ret);
   }
   toast('Đã tải bản lưu');
   return true;
@@ -938,25 +963,50 @@ function loadSave(){
 const _showChoices = showChoices;
 showChoices = function(){ _showChoices(); saveNow(true); };
 const _endDialog = endDialog;
-endDialog = function(){ _endDialog(); if(S && S.inCity && !S.turtle && !D.open && !$('#m-mg').classList.contains('on') && !$('#fail').classList.contains('on')) saveNow(true); };
+endDialog = function(){ _endDialog(); if(S && S.inCity && !S.turtle && !D.open && !MG && !$('#fail').classList.contains('on')) saveNow(true); };
 const _showFail = showFail;
 showFail = function(type){ _showFail(type); saveNewRun(v('luot')+1, type); };
 const _showEnd = showEnd;
-showEnd = function(){ _showEnd(); clearSave(); };
+showEnd = function(){ _showEnd(); clearSave('auto'); };
+/* Đóng trang hay chuyển tab giữa chừng: tự lưu đúng chỗ đang đứng */
+addEventListener('pagehide', ()=>saveNow(true));
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='hidden') saveNow(true); });
 
-/* Màn hình tiêu đề: Tiếp tục / Chơi mới */
+/* Bảng Lưu / Tải */
 function fmtSave(sv){
   const d = new Date(sv.t); const pad = n => String(n).padStart(2,'0');
   const when = `${pad(d.getHours())}:${pad(d.getMinutes())} ngày ${d.getDate()}/${d.getMonth()+1}`;
-  return `Lượt ${sv.luot||1} · ${sv.place||'Alexandria'}${sv.mode!=='newrun' && sv.drops!=null ? ' · còn '+sv.drops+' giọt nước' : ''} · lưu lúc ${when}`;
+  return `Lượt ${sv.luot||1} · ${sv.place||'Alexandria'}${sv.drops!=null ? ' · còn '+sv.drops+' giọt nước' : ''} · ${when}`;
 }
+function openSaves(){
+  const fromTitle = $('#title').classList.contains('on');
+  const blocked = canSave();
+  const row = s => { const sv = readSave(s);
+    return `<div class="slot"><div class="sl-name">${s==='auto'?'Tự lưu':'Ô '+s}</div><div class="sl-info">${sv?esc(fmtSave(sv)):'<span class="empty">Trống</span>'}</div><div class="sl-act">
+      ${s!=='auto'?`<button class="btn ghost" data-save="${s}" ${blocked?'disabled':''}>Lưu vào đây</button>`:''}
+      <button class="btn" data-load="${s}" ${sv?'':'disabled'}>Tải</button></div></div>`; };
+  $('#sbody').innerHTML = `<p class="sl-note">${fromTitle?'Chọn một bản lưu để chơi tiếp.':'Game tự lưu khi hiện lựa chọn, sau mỗi đoạn thoại và khi bạn đóng trang. Muốn giữ một mốc riêng thì lưu vào ô 1, 2 hoặc 3.'}</p>${SLOTS.map(row).join('')}`;
+  $('#sbody').querySelectorAll('[data-save]').forEach(b=>b.onclick=()=>{
+    const s=b.dataset.save;
+    if(readSave(s) && b.dataset.arm!=='1'){ b.dataset.arm='1'; b.textContent='Bấm lần nữa để lưu đè'; return; }
+    if(saveNow(false, s)) openSaves();
+  });
+  $('#sbody').querySelectorAll('[data-load]').forEach(b=>b.onclick=()=>{
+    if(!fromTitle && b.dataset.arm!=='1'){ b.dataset.arm='1'; b.textContent='Bấm lần nữa để tải'; return; }
+    loadSave(b.dataset.load);
+  });
+  $('#m-save').classList.add('on');
+}
+
+/* Màn hình chính: Tiếp tục / Tải game / Chơi mới */
 function refreshTitle(){
-  const sv = readSave(); const c = $('#b-cont'), n = $('#b-start');
-  c.disabled = !sv || !story; $('#saveinfo').textContent = sv ? fmtSave(sv) : 'Chưa có bản lưu nào.';
+  const last = latestSave(); const c = $('#b-cont'), n = $('#b-start'), l = $('#b-load');
+  c.disabled = !last || !story; l.disabled = !last || !story;
+  $('#saveinfo').textContent = last ? 'Bản lưu gần nhất: ' + fmtSave(last.sv) : 'Chưa có bản lưu nào.';
   n.textContent = 'Chơi mới'; n.dataset.arm = '';
-  n.className = sv ? 'btn ghost' : 'btn'; c.className = sv ? 'btn' : 'btn ghost';
+  n.className = last ? 'btn ghost' : 'btn'; c.className = last ? 'btn' : 'btn ghost';
 }
-function showTitle(){ if(D.open || S?.inCity) saveNow(true); $('#title').classList.add('on'); refreshTitle(); }
+function showTitle(){ saveNow(true); if(MG) closeMG(); $('#m-save').classList.remove('on'); $('#title').classList.add('on'); refreshTitle(); }
 
 async function boot(){
   fit();
@@ -973,13 +1023,15 @@ async function boot(){
     return;
   }
   btn.onclick = () => {
-    if(readSave() && btn.dataset.arm !== '1'){ btn.dataset.arm = '1'; btn.textContent = 'Bấm lần nữa: xoá bản lưu, chơi lại từ đầu'; setTimeout(()=>{ if(btn.dataset.arm==='1') refreshTitle(); }, 4000); return; }
-    clearSave(); $('#title').classList.remove('on');
+    if(readSave('auto') && btn.dataset.arm !== '1'){ btn.dataset.arm = '1'; btn.textContent = 'Bấm lần nữa: bắt đầu lại từ đầu'; setTimeout(()=>{ if(btn.dataset.arm==='1') refreshTitle(); }, 4000); return; }
+    clearSave('auto'); $('#title').classList.remove('on'); if(MG) closeMG(); clearInterval(D.tmr); D.open=false; D.choices=false; $('#dlg').classList.remove('on'); $('#choices').innerHTML='';
     story.ResetState(); S = freshState({intro:S?.intro}); D.open=false; $('#hud').hidden = true; $('#party').innerHTML='';
     setBg('den'); runKnot('mo_dau');
   };
   cont.onclick = () => { if(!cont.disabled) loadSave(); };
-  $('#b-save').onclick = () => saveNow(false);
+  $('#b-save').onclick = () => openSaves();
+  $('#b-load').onclick = () => { if(!$('#b-load').disabled) openSaves(); };
+  $('#mg-save').onclick = () => openSaves();
   $('#b-menu').onclick = () => showTitle();
 }
 boot();
